@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Daymark">
+<title>Daymark</title>
+<style>
+:root{--bg:#0b1020;--card:#141d31;--text:#f8fafc;--muted:#94a3b8;--accent:#4f8cff;--border:#26324b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body.light{--bg:#f5f7fb;--card:#fff;--text:#182033;--muted:#6b7280;--border:#d9e0eb}
+.app{max-width:720px;margin:auto;padding:24px 16px 40px}.top{display:flex;justify-content:space-between;align-items:center}
+h1{margin:0;font-size:30px}.muted{color:var(--muted)}button,input,textarea{font:inherit}
+.icon,.new,.save,.danger{border:0;border-radius:14px}.icon{width:44px;height:44px;background:var(--card);color:var(--text);font-size:20px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:22px;padding:16px;margin-top:16px}
+.calhead,.section{display:flex;justify-content:space-between;align-items:center}.calhead h2{margin:0}
+.nav button{background:transparent;color:var(--text);border:0;font-size:28px}.dow,.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.dow div{text-align:center;color:var(--muted);font-size:12px;padding:8px 0}.day{aspect-ratio:1;border:0;border-radius:14px;background:transparent;color:var(--text);font-weight:700;position:relative}
+.day.sel{background:var(--accent);color:white}.day.today{outline:2px solid var(--accent)}.day.other{opacity:.3}.dot{width:5px;height:5px;border-radius:50%;background:var(--accent);position:absolute;left:50%;bottom:5px;transform:translateX(-50%)}
+.day.sel .dot{background:white}.new,.save{background:var(--accent);color:white;padding:12px 16px;font-weight:800}.section{margin-top:20px}
+.rem{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--border);border-radius:16px;margin-top:10px;background:var(--card)}
+.rem .time{min-width:70px;color:var(--accent);font-weight:800}.rem .txt{flex:1}.rem .txt span{display:block;color:var(--muted);font-size:13px}
+.empty{text-align:center;color:var(--muted);padding:24px}.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-end}.modal.show{display:flex}
+.sheet{width:100%;max-width:720px;margin:auto;background:var(--card);border-radius:26px 26px 0 0;padding:20px 16px 30px}
+.sheethead{display:flex;justify-content:space-between;align-items:center}.sheet h2{margin:0}
+label{display:block;color:var(--muted);font-size:13px;font-weight:800;margin:14px 0 7px}input,textarea{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:14px;padding:13px}
+textarea{min-height:90px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.save,.danger{width:100%;margin-top:14px;padding:14px}.danger{background:transparent;color:#ef4444;border:1px solid #ef4444}
+.swatches{display:flex;gap:10px;flex-wrap:wrap}.sw{width:38px;height:38px;border-radius:50%;border:3px solid transparent}.sw.on{border-color:var(--text)}
+.note{color:var(--muted);font-size:13px;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div><div class="muted">Your day, clearly</div><h1>Welcome to Daymark</h1></div>
+    <button class="icon" onclick="openSettings()">⚙︎</button>
+  </div>
+  <div class="card">
+    <div class="calhead"><h2 id="monthTitle"></h2><div class="nav"><button onclick="moveMonth(-1)">‹</button><button onclick="moveMonth(1)">›</button></div></div>
+    <div class="dow"><div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div></div>
+    <div class="grid" id="calendar"></div>
+  </div>
+  <div class="section"><h3 id="dayTitle"></h3><button class="new" onclick="openNew()">+ New</button></div>
+  <div id="reminders"></div>
+</div>
+
+<div class="modal" id="editModal"><div class="sheet">
+  <div class="sheethead"><h2 id="editTitle">New Reminder</h2><button class="icon" onclick="closeM('editModal')">✕</button></div>
+  <label>Reminder</label><textarea id="txt" placeholder="What do you want to remember?"></textarea>
+  <div class="row"><div><label>Date</label><input id="date" type="date"></div><div><label>Time</label><input id="time" type="time"></div></div>
+  <button class="save" onclick="saveReminder()">Save Reminder</button>
+  <button class="danger" id="del" style="display:none" onclick="deleteReminder()">Delete Reminder</button>
+</div></div>
+
+<div class="modal" id="settingsModal"><div class="sheet">
+  <div class="sheethead"><h2>Settings</h2><button class="icon" onclick="closeM('settingsModal')">✕</button></div>
+  <label>Theme</label>
+  <button class="save" onclick="toggleTheme()">Toggle Light / Dark</button>
+  <label>Accent color</label><div class="swatches" id="swatches"></div>
+  <label>Notifications</label><button class="save" onclick="enableNotifications()">Enable Notifications</button>
+  <div class="note">Daymark can save reminders on this phone. Reliable notifications while the app is fully closed require a push-notification backend, which can be added next.</div>
+</div></div>
+
+<script>
+const RK='daymark-reminders',SK='daymark-settings';
+let rs=JSON.parse(localStorage.getItem(RK)||'[]');
+let st=JSON.parse(localStorage.getItem(SK)||'{"dark":true,"accent":"#4f8cff"}');
+let view=new Date(), sel=new Date(), editing=null, timers=[];
+const colors=['#4f8cff','#7c5cff','#10b981','#f59e0b','#ef4444','#ec4899'];
+const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const esc=s=>s.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+const pdate=s=>new Date(s+'T12:00:00').toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'});
+const ptime=t=>{let[a,b]=t.split(':').map(Number);return new Date(2000,0,1,a,b).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})};
+function apply(){document.body.classList.toggle('light',!st.dark);document.documentElement.style.setProperty('--accent',st.accent);swatches.innerHTML=colors.map(c=>'<button class="sw '+(c===st.accent?'on':'')+'" style="background:'+c+'" onclick="setAccent(\''+c+'\')"></button>').join('')}
+function setAccent(c){st.accent=c;localStorage.setItem(SK,JSON.stringify(st));apply()}function toggleTheme(){st.dark=!st.dark;localStorage.setItem(SK,JSON.stringify(st));apply()}
+function moveMonth(n){view=new Date(view.getFullYear(),view.getMonth()+n,1);render()}
+function selectDay(s){sel=new Date(s+'T12:00:00');view=new Date(sel.getFullYear(),sel.getMonth(),1);render()}
+function render(){
+ monthTitle.textContent=view.toLocaleDateString([],{month:'long',year:'numeric'});
+ let first=new Date(view.getFullYear(),view.getMonth(),1),start=new Date(first);start.setDate(1-first.getDay()),out='';
+ for(let i=0;i<42;i++){let d=new Date(start);d.setDate(start.getDate()+i);let ds=ymd(d),has=rs.some(r=>r.date===ds);out+='<button class="day '+(d.getMonth()!=view.getMonth()?'other ':'')+(ds===ymd(new Date())?'today ':'')+(ds===ymd(sel)?'sel':'')+'" onclick="selectDay(\''+ds+'\')">'+d.getDate()+(has?'<i class="dot"></i>':'')+'</button>'}
+ calendar.innerHTML=out;dayTitle.textContent=pdate(ymd(sel));
+ let list=rs.filter(r=>r.date===ymd(sel)).sort((a,b)=>a.time.localeCompare(b.time));
+ reminders.innerHTML=list.length?list.map(r=>'<div class="rem"><div class="time">'+ptime(r.time)+'</div><div class="txt"><b>'+esc(r.text)+'</b><span>'+pdate(r.date)+'</span></div><button class="icon" onclick="editR(\''+r.id+'\')">•••</button></div>').join(''):'<div class="card empty">No reminders for this day.</div>';
+}
+function openNew(){editing=null;editTitle.textContent='New Reminder';txt.value='';date.value=ymd(sel);time.value='09:00';del.style.display='none';editModal.classList.add('show')}
+function editR(id){let r=rs.find(x=>x.id===id);editing=id;editTitle.textContent='Edit Reminder';txt.value=r.text;date.value=r.date;time.value=r.time;del.style.display='block';editModal.classList.add('show')}
+function saveReminder(){let t=txt.value.trim();if(!t||!date.value||!time.value){alert('Add reminder text, date, and time.');return}if(editing){let r=rs.find(x=>x.id===editing);r.text=t;r.date=date.value;r.time=time.value}else rs.push({id:String(Date.now()),text:t,date:date.value,time:time.value});localStorage.setItem(RK,JSON.stringify(rs));sel=new Date(date.value+'T12:00:00');closeM('editModal');render();schedule()}
+function deleteReminder(){rs=rs.filter(r=>r.id!==editing);localStorage.setItem(RK,JSON.stringify(rs));closeM('editModal');render();schedule()}
+function openSettings(){settingsModal.classList.add('show')}function closeM(id){document.getElementById(id).classList.remove('show')}
+async function enableNotifications(){if(!('Notification'in window)){alert('On iPhone, add Daymark to your Home Screen first.');return}let p=await Notification.requestPermission();alert(p==='granted'?'Notifications enabled.':'Notification permission not granted.')}
+function schedule(){timers.forEach(clearTimeout);timers=[];let now=Date.now();rs.forEach(r=>{let when=new Date(r.date+'T'+r.time+':00').getTime(),delay=when-now;if(delay>0&&delay<2147483647)timers.push(setTimeout(()=>{if('Notification'in window&&Notification.permission==='granted')new Notification('Daymark',{body:'Today — '+r.text});else alert('Today — '+r.text)},delay))})}
+apply();render();schedule();setInterval(schedule,60000);
+</script>
+</body>
+</html>
